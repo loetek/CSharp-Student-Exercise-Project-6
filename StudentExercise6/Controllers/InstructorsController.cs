@@ -24,40 +24,97 @@ namespace StudentExercise6.Controllers
 
         // GET: api/Instructors
         [HttpGet]
-        public IEnumerable<Instructor> Get()
+        public IEnumerable<Instructor> Get(string include, string q)
         {
             using (SqlConnection conn = Connection)
             {
                 conn.Open();
                 using (SqlCommand cmd = conn.CreateCommand())
                 {
-                    cmd.CommandText = @"SELECT i.id, i.firstname, i.lastname,
-                                               i.slackhandle, i.cohortId, c.name as cohortname
-                                          FROM Instructor i INNER JOIN Cohort c ON i.cohortid = c.id";
+                    if (include == "exercise")
+                    {
+                        cmd.CommandText = @"select i.id as InstructorId,
+                                               i.FirstName,
+                                               i.LastName,
+                                               i.SlackHandle,
+                                               i.CohortId,
+                                               c.[Name] as CohortName,
+                                               e.id as ExerciseId,
+                                               e.[name] as ExerciseName,
+                                               e.[Language]
+                                          from instructor i
+                                               left join Cohort c on i.CohortId = c.id
+                                               left join InstructorExercise ie on i.id = ie.instructorid
+                                               left join Exercise e on ie.exerciseid = e.id
+                                         WHERE 1 = 1";
+                    }
+                    else
+                    {
+                        cmd.CommandText = @"select i.id as InstructorId,
+                                               i.FirstName,
+                                               i.LastName,
+                                               i.SlackHandle,
+                                               i.CohortId,
+                                               c.[Name] as CohortName
+                                          from instructor i
+                                               left join Cohort c on s.CohortId = c.id
+                                         WHERE 1 = 1";
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(q))
+                    {
+                        cmd.CommandText += @" AND 
+                                             (i.FirstName LIKE @q OR
+                                              i.LastName LIKE @q OR
+                                              i.SlackHandle LIKE @q)";
+                        cmd.Parameters.Add(new SqlParameter("@q", $"%{q}%"));
+                    }
+
                     SqlDataReader reader = cmd.ExecuteReader();
 
-                    List<Instructor> instructors = new List<Instructor>();
+                    Dictionary<int, Instructor> instructors = new Dictionary<int, Instructor>();
                     while (reader.Read())
                     {
-                        Instructor instructor = new Instructor
+                        int instructorId = reader.GetInt32(reader.GetOrdinal("InstructorId"));
+                        if (!instructors.ContainsKey(instructorId))
                         {
-                            Id = reader.GetInt32(reader.GetOrdinal("id")),
-                            FirstName = reader.GetString(reader.GetOrdinal("firstname")),
-                            LastName = reader.GetString(reader.GetOrdinal("lastname")),
-                            SlackHandle = reader.GetString(reader.GetOrdinal("slackhandle")),
-                            CohortId = reader.GetInt32(reader.GetOrdinal("cohortid")),
-                            Cohort = new Cohort
+                            Instructor newInstructor = new Instructor
                             {
-                                Id = reader.GetInt32(reader.GetOrdinal("cohortid")),
-                                Name = reader.GetString(reader.GetOrdinal("cohortname"))
-                            }
-                        };
+                                Id = instructorId,
+                                FirstName = reader.GetString(reader.GetOrdinal("FirstName")),
+                                LastName = reader.GetString(reader.GetOrdinal("LastName")),
+                                SlackHandle = reader.GetString(reader.GetOrdinal("SlackHandle")),
+                                CohortId = reader.GetInt32(reader.GetOrdinal("CohortId")),
+                                Cohort = new Cohort
+                                {
+                                    Id = reader.GetInt32(reader.GetOrdinal("CohortId")),
+                                    Name = reader.GetString(reader.GetOrdinal("CohortName"))
+                                }
+                            };
 
-                        instructors.Add(instructor);
+                            instructors.Add(instructorId, newInstructor);
+                        }
+
+                       // if (include == "exercise")
+                       // {
+                          //  if (!reader.IsDBNull(reader.GetOrdinal("ExerciseId")))
+                           // {
+                              //  Instructor currentInstructor = instructors[instructorId];
+                               // currentInstructor.Exercises.Add(
+                                  //  new Exercise
+                                  //  {
+                                      //  Id = reader.GetInt32(reader.GetOrdinal("ExerciseId")),
+                                      //  Language = reader.GetString(reader.GetOrdinal("Language")),
+                                      //  Name = reader.GetString(reader.GetOrdinal("ExerciseName")),
+                                  //  }
+                              //  );
+                          //  }
+                        //}
                     }
 
                     reader.Close();
-                    return instructors.ToList();
+
+                    return instructors.Values.ToList();
                 }
             }
         }

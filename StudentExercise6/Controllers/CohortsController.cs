@@ -24,8 +24,9 @@ namespace StudentExercise6.Controllers
         }
 
         // GET: api/Cohorts
+       
         [HttpGet]
-        public IEnumerable<Cohort> Get()
+        public IEnumerable<Cohort> Get(string q, string include )
         {
             using (SqlConnection conn = Connection)
             {
